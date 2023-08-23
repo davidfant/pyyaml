@@ -1146,10 +1146,18 @@ class Scanner:
         start_mark = self.get_mark()
         quote = self.peek()
         self.forward()
-        chunks.extend(self.scan_flow_scalar_non_spaces(double, start_mark))
+        # print('chunks 1', chunks)
+        chunk = self.scan_flow_scalar_non_spaces(double, start_mark)
+        chunks.extend(chunk)
+        # print('chunks 2', chunks)
         while self.peek() != quote:
-            chunks.extend(self.scan_flow_scalar_spaces(double, start_mark))
-            chunks.extend(self.scan_flow_scalar_non_spaces(double, start_mark))
+            chunk = self.scan_flow_scalar_spaces(double, start_mark)
+            chunks.extend(chunk)
+            # print('chunks 3', chunks, '\t', chunk)
+            chunk = self.scan_flow_scalar_non_spaces(double, start_mark)
+            chunks.extend(chunk)
+            # print('chunks 4', chunks, '\t', chunk)
+        # print('chunks 5', chunks)
         self.forward()
         end_mark = self.get_mark()
         return ScalarToken(''.join(chunks), False, start_mark, end_mark,
@@ -1238,7 +1246,7 @@ class Scanner:
             raise ScannerError("while scanning a quoted scalar", start_mark,
                     "found unexpected end of stream", self.get_mark())
         elif ch in '\r\n\x85\u2028\u2029':
-            line_break = self.scan_line_break()
+            line_break = self.scan_line_break(deep=True)
             breaks = self.scan_flow_scalar_breaks(double, start_mark)
             if line_break != '\n':
                 chunks.append(line_break)
@@ -1413,7 +1421,7 @@ class Scanner:
             raise ScannerError("while scanning a %s" % name, start_mark, str(exc), mark)
         return value
 
-    def scan_line_break(self):
+    def scan_line_break(self, deep = False):
         # Transforms:
         #   '\r\n'      :   '\n'
         #   '\r'        :   '\n'
@@ -1422,10 +1430,28 @@ class Scanner:
         #   '\u2028'    :   '\u2028'
         #   '\u2029     :   '\u2029'
         #   default     :   ''
+
+        if deep:
+            chars = []
+            while True:
+                ch = self.peek()
+                if ch in '\r\n\x85':
+                    self.forward()
+                    chars.append('\n')
+                elif ch in '\u2028\u2029':
+                    self.forward()
+                    chars.append(ch)
+                else:
+                    break
+            return ''.join(chars)
+
         ch = self.peek()
         if ch in '\r\n\x85':
             if self.prefix(2) == '\r\n':
                 self.forward(2)
+            # elif self.prefix(2) == '\n\n':
+            #     self.forward(2)
+            #     return '\n\n'
             else:
                 self.forward()
             return '\n'
